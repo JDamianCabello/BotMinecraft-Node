@@ -72,6 +72,9 @@ class CommandProcessor {
 
       // Comando anti-AFK  
       '/noafk': (sender) => this.toggleAntiAFK(sender),
+      
+      // Comando autoreset
+      '/autoreset': (sender, ...args) => this.toggleAutoReset(sender, ...args),
 
       // Comando para reactivar bot después de muerte
       '/reactivar': (sender) => this.reactivateBot(sender),
@@ -165,6 +168,7 @@ class CommandProcessor {
     console.log('  /debug         - Activar/desactivar debug de mensajes')
     console.log('  /webview       - Activar visualizador web')
     console.log('  /noafk         - Activar/desactivar sistema anti-AFK')
+    console.log('  /autoreset     - Activar/desactivar autoreset automático [15|30]')
     console.log('  /reactivar     - Reactivar bot después de muerte (sale del lobby)')
     console.log('  /proxies       - Ver estado de todos los proxies/VPNs')
     console.log('  /myproxy       - Ver proxy asignado a este bot')
@@ -392,6 +396,7 @@ class CommandProcessor {
     console.log(`🌾 Agricultura: ${this.farmingSystem.farmingActive ? 'ACTIVA' : 'INACTIVA'}`)
     console.log(`🎣 Pesca: ${this.fishingSystem.fishingActive ? 'ACTIVA' : 'INACTIVA'}`)
     console.log(`🎮 Anti-AFK: ${botState.antiAFKActive ? 'ACTIVO' : 'INACTIVO'}`)
+    console.log(`🔄 Autoreset: ${botState.autoResetActive ? `ACTIVO (${botState.autoResetIntervalMinutes}min)` : 'INACTIVO'}`)
     
     const nearbyEntities = Object.values(this.bot.entities).filter(entity => {
       if (entity === this.bot.entity) return false
@@ -439,6 +444,7 @@ class CommandProcessor {
     console.log(`💬 Chat visible: ${botState.showBotChat ? 'SÍ' : 'NO'}`)
     console.log(`🔍 Debug: ${botState.debugMessages ? 'ACTIVADO' : 'DESACTIVADO'}`)
     console.log(`🎮 Anti-AFK: ${botState.antiAFKActive ? 'ACTIVO' : 'INACTIVO'}`)
+    console.log(`🔄 Autoreset: ${botState.autoResetActive ? `ACTIVO (${botState.autoResetIntervalMinutes}min)` : 'INACTIVO'}`)
     
     // Información del item en mano
     const heldItem = this.bot.heldItem
@@ -540,50 +546,14 @@ class CommandProcessor {
       if (!botState.antiAFKActive) return
 
       try {
-        // Realizar acciones sutiles para evitar AFK
-        const actions = [
-          () => {
-            // Mirar ligeramente a la izquierda y derecha
-            const currentYaw = this.bot.entity.yaw
-            this.bot.look(currentYaw + 0.1, this.bot.entity.pitch, false)
-            setTimeout(() => {
-              this.bot.look(currentYaw, this.bot.entity.pitch, false)
-            }, 500)
-          },
-          () => {
-            // Pequeño salto
-            this.bot.setControlState('jump', true)
-            setTimeout(() => {
-              this.bot.setControlState('jump', false)
-            }, 100)
-          },
-          () => {
-            // Agacharse y levantarse
-            this.bot.setControlState('sneak', true)
-            setTimeout(() => {
-              this.bot.setControlState('sneak', false)
-            }, 500)
-          }
-        ]
-
-        // Si no está farmeando, minando o pescando, agregar acciones de movimiento
+        // Solo ejecutar anti-AFK si no está farmeando, minando o pescando
         if (!this.farmingSystem.farmingActive && !this.miningSystem.miningActive && !this.fishingSystem.fishingActive) {
-          actions.push(() => {
-            // Mover ligeramente hacia adelante y atrás
-            this.bot.setControlState('forward', true)
-            setTimeout(() => {
-              this.bot.setControlState('forward', false)
-              this.bot.setControlState('back', true)
-              setTimeout(() => {
-                this.bot.setControlState('back', false)
-              }, 200)
-            }, 200)
-          })
+          // Solo saltar para evitar AFK sin moverse del sitio
+          this.bot.setControlState('jump', true)
+          setTimeout(() => {
+            this.bot.setControlState('jump', false)
+          }, 100)
         }
-
-        // Ejecutar una acción aleatoria
-        const randomAction = actions[Math.floor(Math.random() * actions.length)]
-        randomAction()
 
         if (botState.verboseMode) {
           console.log('🎮 Acción anti-AFK ejecutada')
@@ -729,6 +699,63 @@ class CommandProcessor {
         console.log(message)
       }
     }
+  }
+
+  toggleAutoReset(sender = null, intervalArg = null) {
+    // Cambiar intervalo si se proporciona
+    if (intervalArg) {
+      const interval = parseInt(intervalArg)
+      if (interval === 15 || interval === 30) {
+        botState.autoResetIntervalMinutes = interval
+        console.log(`⏰ Intervalo de autoreset configurado a ${interval} minutos`)
+      } else {
+        console.log('⚠️ Intervalo inválido. Use 15 o 30 minutos')
+        return
+      }
+    }
+
+    botState.autoResetActive = !botState.autoResetActive
+
+    if (botState.autoResetActive) {
+      console.log(`🔄 Sistema autoreset ACTIVADO (cada ${botState.autoResetIntervalMinutes} minutos)`)
+      this.startAutoReset()
+    } else {
+      console.log('⏹️ Sistema autoreset DESACTIVADO')
+      this.stopAutoReset()
+    }
+  }
+
+  startAutoReset() {
+    if (botState.autoResetInterval) {
+      clearInterval(botState.autoResetInterval)
+    }
+
+    const intervalMs = botState.autoResetIntervalMinutes * 60 * 1000
+
+    botState.autoResetInterval = setInterval(() => {
+      if (!botState.autoResetActive) return
+
+      try {
+        console.log('🔄 Ejecutando autoreset automático...')
+        this.resetBot()
+        
+        if (botState.verboseMode) {
+          console.log(`🔄 Próximo autoreset en ${botState.autoResetIntervalMinutes} minutos`)
+        }
+      } catch (error) {
+        console.log(`⚠️ Error en autoreset: ${error.message}`)
+      }
+    }, intervalMs)
+
+    console.log(`🔄 Sistema autoreset iniciado (cada ${botState.autoResetIntervalMinutes} minutos)`)
+  }
+
+  stopAutoReset() {
+    if (botState.autoResetInterval) {
+      clearInterval(botState.autoResetInterval)
+      botState.autoResetInterval = null
+    }
+    console.log('⏹️ Sistema autoreset detenido')
   }
 }
 

@@ -227,10 +227,57 @@ class MinecraftBot {
   }
 }
 
-// Función para inicializar el bot
-function createBot(username) {
-  const botInstance = new MinecraftBot(username)
-  return botInstance.initialize()
+// Función para inicializar el bot con reconexión automática
+async function createBot(username) {
+  let shouldReconnect = true
+  let reconnectAttempts = 0
+  const maxReconnectAttempts = 10
+  const reconnectDelay = 5000 // 5 segundos
+
+  do {
+    try {
+      console.log(`🚀 Intento de conexión ${reconnectAttempts + 1}/${maxReconnectAttempts}`)
+      
+      const botInstance = new MinecraftBot(username)
+      await botInstance.initialize()
+      
+      // Resetear contador si la conexión es exitosa
+      reconnectAttempts = 0
+      
+      // Esperar hasta que el bot se desconecte
+      await new Promise((resolve) => {
+        botInstance.bot.on('end', () => {
+          console.log('🔌 Bot desconectado, intentando reconectar...')
+          resolve()
+        })
+        
+        botInstance.bot.on('error', (error) => {
+          console.log(`⚠️ Error de conexión: ${error.message}`)
+          resolve()
+        })
+      })
+      
+      // Limpiar el bot antes de reconectar
+      botInstance.stop()
+      
+    } catch (error) {
+      console.log(`❌ Error al conectar: ${error.message}`)
+    }
+    
+    reconnectAttempts++
+    
+    // Si no se ha alcanzado el máximo de intentos, esperar y reintentar
+    if (reconnectAttempts < maxReconnectAttempts) {
+      console.log(`⏱️ Esperando ${reconnectDelay / 1000} segundos antes de reconectar...`)
+      await new Promise(resolve => setTimeout(resolve, reconnectDelay))
+    } else {
+      console.log(`❌ Se alcanzó el máximo de intentos de reconexión (${maxReconnectAttempts})`)
+      shouldReconnect = false
+    }
+    
+  } while (shouldReconnect && reconnectAttempts < maxReconnectAttempts)
+  
+  console.log('🔚 Sistema de reconexión terminado')
 }
 
 // Si se ejecuta directamente
@@ -243,14 +290,14 @@ if (require.main === module) {
   console.log('🤖 Configuración del Bot (desde src/index)')
   console.log('==========================================')
 
-  rl.question('Ingresa el nombre del bot: ', (botName) => {
+  rl.question('Ingresa el nombre del bot: ', async (botName) => {
     if (!botName.trim()) {
       console.log('❌ Nombre vacío, usando "Bot" por defecto')
       botName = 'Bot'
     }
     
     rl.close()
-    createBot(botName.trim())
+    await createBot(botName.trim())
   })
 }
 
