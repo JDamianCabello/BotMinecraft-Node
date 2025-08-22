@@ -23,9 +23,10 @@ class BotState {
     this.antiAFKInterval = null
     
     // Variables para sistema de autoreset
-    this.autoResetActive = false
+    this.autoResetActive = true  // Activado por defecto
     this.autoResetInterval = null
     this.autoResetIntervalMinutes = 15
+    this.lastResetTime = 0  // Para evitar spam de reset
     
     // Variables para sistema de pesca
     this.fishingActive = false
@@ -65,6 +66,7 @@ class BotState {
     
     // Limpiar autoreset al resetear
     if (this.autoResetInterval) {
+      clearTimeout(this.autoResetInterval)
       clearInterval(this.autoResetInterval)
       this.autoResetInterval = null
     }

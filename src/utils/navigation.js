@@ -9,6 +9,11 @@ const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
 class NavigationSystem {
   constructor(bot) {
     this.bot = bot
+    this.commandProcessor = null
+  }
+
+  setCommandProcessor(commandProcessor) {
+    this.commandProcessor = commandProcessor
   }
 
   async goToSpawn() {
@@ -155,6 +160,9 @@ class NavigationSystem {
         await this.bot.activateEntity(znpcEntity)
         console.log(`✅ Click derecho realizado en ${entityName}`)
         
+        // Iniciar autoreset automático después de salir del spawn exitosamente
+        this.startAutoResetAfterSpawnExit()
+        
         return true
       } else {
         console.log('❌ [ZNPC] 450766 no encontrado, buscando cualquier ZNPC...')
@@ -174,6 +182,9 @@ class NavigationSystem {
           await this.bot.activateEntity(anyZNPC)
           console.log(`✅ Click derecho realizado en ${entityName}`)
           
+          // Iniciar autoreset automático después de salir del spawn exitosamente
+          this.startAutoResetAfterSpawnExit()
+          
           return true
         } else {
           console.log('❌ No se encontró ningún ZNPC en el spawn')
@@ -189,6 +200,18 @@ class NavigationSystem {
       this.goToSpawn()
       return false
     }
+  }
+
+  startAutoResetAfterSpawnExit() {
+    // Esperar unos segundos para asegurar que el bot está completamente en survival
+    setTimeout(() => {
+      if (botState.autoResetActive && !botState.autoResetInterval) {
+        console.log('🔄 Iniciando autoreset automático después de salir del spawn')
+        if (this.commandProcessor) {
+          this.commandProcessor.startAutoReset()
+        }
+      }
+    }, 5000) // Esperar 5 segundos después del clic en ZNPC
   }
 }
 

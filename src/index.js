@@ -139,6 +139,9 @@ class MinecraftBot {
       this.systems.fishing
     )
 
+    // Configurar referencia del commandProcessor en navigation
+    this.systems.navigation.setCommandProcessor(this.commandProcessor)
+
     // Manejadores de eventos
     this.eventHandlers = new EventHandlers(
       this.bot,

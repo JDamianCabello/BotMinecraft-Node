@@ -187,6 +187,19 @@ class CommandProcessor {
   }
 
   resetBot() {
+    // Prevenir spam de reset - mínimo 30 segundos entre resets
+    const currentTime = Date.now()
+    const minCooldown = 30000 // 30 segundos
+    
+    if (currentTime - botState.lastResetTime < minCooldown) {
+      const remainingTime = Math.ceil((minCooldown - (currentTime - botState.lastResetTime)) / 1000)
+      if (botState.verboseMode) {
+        console.log(`⏱️ Esperando cooldown de reset (${remainingTime}s restantes)`)
+      }
+      return
+    }
+    
+    botState.lastResetTime = currentTime
     console.log('🔄 Ejecutando reset: yendo al lobby...')
     this.bot.chat('/lobby')
     setTimeout(() => {
@@ -732,7 +745,9 @@ class CommandProcessor {
 
     const intervalMs = botState.autoResetIntervalMinutes * 60 * 1000
 
-    botState.autoResetInterval = setInterval(() => {
+    // Usar setTimeout para el primer reset (esperar el tiempo completo)
+    // y luego setInterval para los subsiguientes
+    botState.autoResetInterval = setTimeout(() => {
       if (!botState.autoResetActive) return
 
       try {
@@ -742,16 +757,37 @@ class CommandProcessor {
         if (botState.verboseMode) {
           console.log(`🔄 Próximo autoreset en ${botState.autoResetIntervalMinutes} minutos`)
         }
+        
+        // Después del primer reset, usar setInterval para los subsiguientes
+        if (botState.autoResetActive) {
+          botState.autoResetInterval = setInterval(() => {
+            if (!botState.autoResetActive) return
+
+            try {
+              console.log('🔄 Ejecutando autoreset automático...')
+              this.resetBot()
+              
+              if (botState.verboseMode) {
+                console.log(`🔄 Próximo autoreset en ${botState.autoResetIntervalMinutes} minutos`)
+              }
+            } catch (error) {
+              console.log(`⚠️ Error en autoreset: ${error.message}`)
+            }
+          }, intervalMs)
+        }
+        
       } catch (error) {
         console.log(`⚠️ Error en autoreset: ${error.message}`)
       }
     }, intervalMs)
 
-    console.log(`🔄 Sistema autoreset iniciado (cada ${botState.autoResetIntervalMinutes} minutos)`)
+    console.log(`🔄 Sistema autoreset iniciado - primer reset en ${botState.autoResetIntervalMinutes} minutos`)
   }
 
   stopAutoReset() {
     if (botState.autoResetInterval) {
+      // clearTimeout y clearInterval son intercambiables en Node.js
+      clearTimeout(botState.autoResetInterval)
       clearInterval(botState.autoResetInterval)
       botState.autoResetInterval = null
     }
